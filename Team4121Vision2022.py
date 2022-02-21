@@ -46,6 +46,7 @@ import imp
 sys.path.append('/home/pi/.local/lib/python3.7/site-packages')
 sys.path.append('/home/pi/Team4121/Libraries')
 sys.path.append('/usr/local/lib/vmxpi/')
+
 #sys.path.append('C:\\Users\\timfu\\Documents\\Team4121\\Libraries')
 
 #Module imports
@@ -76,13 +77,11 @@ cameraValues={}
 
 #Define program control flags
 useNavx = False
-useFieldCam = True
-useGoalCam = False #initializecamera
-findBalls = True
+findBalls = True    
 findMarkers = False
-findGoal = False #tape method
+findGoal = True #tape method
 videoTesting = True
-resizeVideo = True
+resizeVideo = False
 saveVideo = False
 ballColor = 1
 
@@ -283,9 +282,9 @@ def main():
         goalCamFilename = videoDirectory + "/GoalCam_001.avi"
         goalCamera = FRCWebCam('/dev/v4l/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.2:1.0-video-index0', 
                                'GoalCam', 
-                               goalCamSettings,
-                               'GoalCam01',
-                               goalCamFilename)
+                               goalCamSettings)
+                               #'GoalCam01',
+                               #goalCamFilename)
         
         goalCamWidth = int(cameraValues['GoalCamWidth'])
         goalCamHeight = int(cameraValues['GoalCamHeight'])
@@ -321,7 +320,7 @@ def main():
                 ballsFound, ballData = visionProcessor.detect_game_balls_only(imgField, int(cameraValues['FieldCamWidth']),
                                                                         int(cameraValues['FieldCamHeight']),
                                                                         float(cameraValues['FieldCamFOV']),
-                                                                        ballColor)
+                                                                        int(ballColor))
             if findMarkers == True:
                 markersFound, markerData = visionProcessor.detect_field_marker(imgField, int(cameraValues['FieldCamWidth']),
                                                                         int(cameraValues['FieldCamHeight']),
@@ -429,7 +428,7 @@ def main():
             imgBlankRaw = np.zeros(shape=(int(cameraValues['GoalCamWidth']), int(cameraValues['GoalCamHeight']), 3), dtype=np.uint8)
 
             #Call detection method
-            tapeCameraValues, tapeRealWorldValues, foundTape, tapeTargetLock, rect, box = visionProcessor.detect_tape_rectangle(imgGoal, int(cameraValues['GoalCamWidth']),
+            tapeCameraValues, tapeRealWorldValues, foundTape, tapeTargetLock = visionProcessor.detect_four_vision_tapes_rectangle(imgGoal, int(cameraValues['GoalCamWidth']),
                                                                                                                             int(cameraValues['GoalCamHeight']),
                                                                                                                             float(cameraValues['GoalCamFOV']),
                                                                                                                             float(cameraValues['GoalCamFocalLength']),
@@ -440,8 +439,7 @@ def main():
             if foundTape == True:
 
                 # if tapeTargetLock:
-                cv.rectangle(imgGoal,(tapeCameraValues['TargetX'],tapeCameraValues['TargetY']),(tapeCameraValues['TargetX']+tapeCameraValues['TargetW'],tapeCameraValues['TargetY']+tapeCameraValues['TargetH']),(0,255,0),2) #vision tape
-                cv.drawContours(imgGoal, [box], 0, (0,0,255), 2)
+                cv.rectangle(imgGoal,(tapeCameraValues['TargetX'],tapeCameraValues['TargetY']),(tapeCameraValues['TargetX']+tapeCameraValues['TargetW'],tapeCameraValues['TargetY']+tapeCameraValues['TargetH']),(0,0,255),2) #vision tape
                 
                 cv.putText(imgBlankRaw, 'Tape Distance (A): %.2f' %tapeRealWorldValues['StraightDistance'], (10, 30), cv.FONT_HERSHEY_SIMPLEX, .45,(0, 0, 255), 1)
                 cv.putText(imgBlankRaw, 'Tape Distance (S): %.2f' %tapeRealWorldValues['TapeDistance'], (10, 50), cv.FONT_HERSHEY_SIMPLEX, .45,(0, 0, 255), 1)

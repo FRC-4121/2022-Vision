@@ -114,7 +114,7 @@ class VisionLibrary:
 
 
     # Define basic image processing method for contours
-    def process_image_contours(self, imgRaw, hsvMin, hsvMax, erodeDilate):
+    def process_image_contours(self, imgRaw, hsvMin, hsvMax, erodeDilate, useCanny):
         
         finalImg = ""
 
@@ -128,9 +128,10 @@ class VisionLibrary:
         mask = cv.inRange(hsv, hsvMin, hsvMax)
 
         # Detect edges
-        edges = cv.Canny(mask, 35, 125)
-        cv.imshow('mask', mask)
-        cv.imshow('edges', edges)
+        if useCanny == True:
+            edges = cv.Canny(mask, 35, 125)
+        else:
+            edges = mask
 
         if erodeDilate:
             # Erode image to reduce background noise
@@ -309,7 +310,7 @@ class VisionLibrary:
         ballTolerance = 0.1
 
         # Find contours in the mask and clean up the return style from OpenCV
-        ballContours = self.process_image_contours(imgRaw, ballHSVMin, ballHSVMax,False)
+        ballContours = self.process_image_contours(imgRaw, ballHSVMin, ballHSVMax, False, True)
 
         # Only proceed if at least one contour was found
         if len(ballContours) > 0:
@@ -406,7 +407,7 @@ class VisionLibrary:
         ratioMin = float(VisionLibrary.marker_values['TARGETRATIO']) - float(VisionLibrary.marker_values['RATIOTOL'])
         
         #finding marker contours
-        markerContours = self.process_image_contours(imgRaw, markerHSVMin, markerHSVMax, False)
+        markerContours = self.process_image_contours(imgRaw, markerHSVMin, markerHSVMax, False, True)
 
         # Only proceed if at least one contour was found
         if len(markerContours) > 0:
@@ -511,7 +512,7 @@ class VisionLibrary:
         tapeRealWorldValues = {}
         
         # Find alignment tape in image
-        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, True)
+        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, True, False)
   
         # Continue with processing if alignment tape found
         if len(tapeContours) > 0:
@@ -645,7 +646,7 @@ class VisionLibrary:
         tapeRealWorldValues = {}
         
         # Find alignment tape in image
-        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, True)
+        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, False, True)
   
         # Continue with processing if alignment tape found
         if len(tapeContours) > 0:
@@ -767,79 +768,77 @@ class VisionLibrary:
         rect = None
         box = None
 
+
         # Initialize flags
         foundTape = False
         targetLock = False
-
-        goalHeight = 98.0
 
         # Return dictionary
         tapeCameraValues = {}
         tapeRealWorldValues = {}
         
         # Find alignment tape in image
-        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, True)
-  
+        tapeContours = self.process_image_contours(imgRaw, tapeHSVMin, tapeHSVMax, False, False)
+
         # Continue with processing if alignment tape found
-        if len(tapeContours) > 0:
-
-            # Find the largest contour and check it against the mininum tape area
-            largestContour = max(tapeContours, key=cv.contourArea)
-            rectangle1 = [0,0,0,0] #X,Y,W,H which is the one(first) tape
-            rectangle2 = [0,0,0,0] #X,Y,W,H which is the two(second) tape
-            rectangle3 = [0,0,0,0] #X,Y,W,H which is the third tape
-            rectangle4 = [0,0,0,0] #X,Y,W,H which is the fourth tape
-
-            rectangle1[0], rectangle1[1], rectangle1[2], rectangle1[3] =  cv.boundingRect(tapeContours[0])
-            rectangle2[0], rectangle2[1], rectangle2[2], rectangle2[3] =  cv.boundingRect(tapeContours[1])
-            rectangle3[0], rectangle3[1], rectangle3[2], rectangle3[3] =  cv.boundingRect(tapeContours[2])
-            rectangle4[0], rectangle4[1], rectangle4[2], rectangle4[3] =  cv.boundingRect(tapeContours[3])
-
-            spaceBetweenTapes = 5.5 #inches estimated idk for sure
-
-            #general rectangle around all four other rectangles
-            generalRectX, generalRectY, generalRectW, generalRectH = rectangle1[0], rectangle1[1], rectangle1[2] + rectangle2[2] + rectangle3[2] + rectangle4[2] + (4 * spaceBetweenTapes),  rectangle2[1] - (rectangle1[0] + rectangle1[3])  #there are 4 spaces              
-            # for tape in tapeContours
-            targetX = generalRectX
-            targetY = generalRectY
-            targetW = generalRectW
-            targetH = generalRectH
-
-
-            if generalRectW * generalRectH > int(VisionLibrary.tape_values['MINAREA']):
-                
-                
-
+        if len(tapeContours) >= 3: #AT LEAST three
+            
+            #Process each contour
+            firstContour = True
+            minOffset = 0
+            for contour in tapeContours:
+              
                 # Find horizontal rectangle
-                #targetX, targetY, targetW, targetH = cv.boundingRect(largestContour)
+                rectX, rectY, rectW, rectH = cv.boundingRect(contour) 
 
-                # Calculate aspect ratio
-                aspectRatio = generalRectW / generalRectH
+                if (rectW * rectH) > int(VisionLibrary.tape_values['MINAREA']):
+                    
+                    # Find offset of rectangle from center of image
+                    rectOffset = abs((rectX + rectW/2) - imageWidth / 2) #from parameter
 
-                # Find angled rectangle
-                rect = cv.minAreaRect(largestContour)#returns ((x, y), (h, w), angle)
-                #box = cv.boxPoints(rect)
-                #box = np.int0(box)
+                    if firstContour == True:
 
-                # Find angle of bot to target
-                angle = rect[2]
-                if abs(angle) < 45:
-                    cameraAngle = abs(angle)
-                else:
-                     cameraAngle = 90 - abs(angle)
-                botAngle = 2 * cameraAngle
+                        minOffset = rectOffset
+                        firstContour = False
+                        targetX = rectX
+                        targetY = rectY
+                        targetW = rectW
+                        targetH = rectH
 
-                # Set flag
-                foundTape = True
-                
+                    else:
+
+                        if rectOffset < minOffset:
+
+                            minOffset = rectOffset
+                            targetX = rectX
+                            targetY = rectY
+                            targetW = rectW
+                            targetH = rectH
+
+                    #  Calculate aspect ratio
+                    #  aspectRatio = generalRectW / generalRectH
+
+                    # # Find angled rectangle
+                    # rect = cv.minAreaRect(contour)#returns ((x, y), (h, w), angle)
+                    # #box = cv.boxPoints(rect)
+                    # #box = np.int0(box)
+
+                    # # Find angle of bot to target
+                    # angle = rect[2]
+                    # if abs(angle) < 45:
+                    #     cameraAngle = abs(angle)
+                    # else:
+                    #      cameraAngle = 90 - abs(angle)
+                    # botAngle = 2 * cameraAngle
+
+                    # Set flag
+                    foundTape = True 
+            
             # Calculate real world values of found tape
             if foundTape:
-                
-                # Adjust tape size for robot angle
-                apparentTapeWidth = float(VisionLibrary.tape_values['TAPEWIDTH']) #* math.cos(math.radians(botAngle))
-                
+                                
                 # Calculate inches per pixel conversion factor
-                inchesPerPixel = apparentTapeWidth / targetW
+                inchesPerPixel = float(VisionLibrary.tape_values['TAPEWIDTH']) / targetW
 
                 # Find tape offsets
                 horizOffsetPixels = (targetX + targetW/2) - imageWidth / 2 #from parameter
@@ -849,11 +848,13 @@ class VisionLibrary:
                 centerOffset = -horizOffsetInInches
                 
                 # Calculate distance to tape
-                straightLineDistance = apparentTapeWidth * cameraFocalLength / targetW
+                straightLineDistance = float(VisionLibrary.tape_values['TAPEWIDTH']) * cameraFocalLength / targetW
                 distanceArg = math.pow(straightLineDistance, 2) - math.pow((float(VisionLibrary.tape_values['GOALHEIGHT']) - cameraMountHeight),2)
                 if (distanceArg > 0):
                     distanceToTape = math.sqrt(distanceArg)
-                distanceToWall = distanceToTape / math.cos(math.radians(botAngle))                
+                else:
+                    distanceToTape = straightLineDistance
+                distanceToWall = distanceToTape                
 
                 # Find tape offsets
                 horizAngleToTape = math.degrees(math.atan((horizOffsetInInches / distanceToTape)))
@@ -864,10 +865,10 @@ class VisionLibrary:
                     targetLock = True
 
         # Fill return dictionary
-        #tapeCameraValues['TargetX'] = targetX
-        #tapeCameraValues['TargetY'] = targetY
-        #tapeCameraValues['TargetW'] = targetW
-        #tapeCameraValues['TargetH'] = targetH
+        tapeCameraValues['TargetX'] = targetX
+        tapeCameraValues['TargetY'] = targetY
+        tapeCameraValues['TargetW'] = targetW
+        tapeCameraValues['TargetH'] = targetH
         tapeCameraValues['IPP'] = inchesPerPixel
         tapeCameraValues['Offset'] = horizOffsetPixels
         tapeRealWorldValues['AspectRatio'] = aspectRatio
@@ -877,9 +878,9 @@ class VisionLibrary:
         tapeRealWorldValues['WallDistance'] = distanceToWall
         tapeRealWorldValues['HAngle'] = horizAngleToTape
         tapeRealWorldValues['VAngle'] = vertAngleToTape
-        #tapeRealWorldValues['TargetRotation'] = cameraAngle
-        #tapeRealWorldValues['BotAngle'] = botAngle
+        tapeRealWorldValues['TargetRotation'] = cameraAngle
+        tapeRealWorldValues['BotAngle'] = 0
         tapeRealWorldValues['ApparentWidth'] = apparentTapeWidth
         tapeRealWorldValues['VertOffset'] = vertOffsetInInches
 
-        return tapeCameraValues, tapeRealWorldValues, foundTape, targetLock, rect, box
+        return tapeCameraValues, tapeRealWorldValues, foundTape, targetLock

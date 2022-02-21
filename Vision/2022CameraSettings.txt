@@ -16,7 +16,7 @@ GoalCamFPS,15
 GoalCamBrightness,0
 GoalCamExposure,0
 GoalCamCalFactor,1
-GoalCamFocalLength,340.00
-GoalCamMountAngle,25.0
-GoalCamMountHeight,26.0
+GoalCamFocalLength,430.00
+GoalCamMountAngle,20.0
+GoalCamMountHeight,43.5
 GoalCamResizeFactor,2
